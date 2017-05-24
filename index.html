@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title></title>
+	<style type="text/css">
+		canvas{
+			background-color:pink;
+			position:absolute;
+			/*垂直居中*/
+			margin:auto;
+			top:0;
+			left:0;
+			bottom:0;
+			right:0;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="canvas" width="500" height="500"></canvas>
+
+	<script type="text/javascript">
+		var canvas=document.getElementById('canvas');
+		var context=canvas.getContext("2d");
+		
+		//生成数据,一行12个小方块
+		var data=createDate(12,12);
+		//方块的数据
+		var arr=[
+			[[1,1,1,1]],
+			[[1,1],[1,1]],
+			[[1,1,0],[0,1,1]],
+			[[0,1,1],[1,1,0]],
+			[[0,1,0],[1,1,1]],
+			[[1,0,0],[1,1,1]],
+			[[0,0,1],[1,1,1]]
+		];
+
+		//随机从这七个数据当中,抽取一个出来
+		var matrix=mold();
+		//canvas内生成小方块初始值的位置
+		var x=4;
+		var y=0;
+		//有了方块之后,就要把这个方块生成在地图上面
+		createRect(matrix);
+
+		//生成地图
+		map(data,context);
+
+		//开始自动向下掉落
+		var timer=null;
+		timer=setInterval(function(){
+			fall();
+		},400);
+
+		//添加键盘事件
+		document.onkeydown=function(ev){
+			switch(ev.keyCode){
+				case 37:           //左
+					clearRect(matrix);
+					if(collideTestX(-1)){
+						x--;
+					}
+					createRect(matrix);
+					break;
+				case 39:           //右
+					clearRect(matrix);
+					if(collideTestX(1)){
+						x++;
+					}
+					createRect(matrix);
+					break;
+				case 38:           //上
+					//变形 
+					clearRect(matrix);
+					rotate(matrix);
+					createRect(matrix);
+					break;
+				case 40:           //下
+					break;
+			}
+		}
+
+		//x轴的移动
+		function collideTestX(n){
+			//如果n=-1,则为左移,n=1,则为右移
+			var maxX=data[0].length -matrix[0].length;
+			//碰到边界
+			if(x+n<0 || x+n>maxX){
+				return false;
+			}
+
+			//碰撞其他的方块检测
+			if(n<0){
+				//左
+				for(var i=0;i<matrix.length;i++){
+					var index=0;
+					//一直找,找到1
+					while(!matrix[i][index]){
+						index++;
+					}
+					//判断左边
+					if(data[i+y][index+x-1]){
+						return false;
+					}
+				}
+			}else{
+				//右
+				for(var i=0;i<matrix.length;i++){
+					var index=matrix[0].length;  //最右边
+					//一直找,找到1
+					while(!matrix[i][index]){
+						index--;
+					}
+					//判断右边
+					if(data[i+y][index+x+1]){
+						return false;
+					}
+				}
+			}
+
+			return true;
+		}
+
+		//变形
+		function rotate(){
+			//x变成y,y变成x
+			var arr=[];
+			var y=matrix.length;             //行
+			var x=matrix[0].length;          //列
+
+			for(var i=0;i<x;i++){
+				arr.push([]);
+			}
+
+			//赋值
+			for(var i=0;i<y;i++){
+				for(var j=0;j<x;j++){
+					//
+					arr[j][y-1-i]=matrix[i][j];
+				}
+			}
+			matrix=arr;
+		}
+
+		//生成数据 -> 二维数组
+		function createDate(x,y){
+			var data=[];
+			for(var i=0;i<x;i++){
+				//生成一个二唯数组
+				data.push([]);
+				for(var j=0;j<y;j++){
+					//首先,默认所有的格子都是0
+					data[i].push(0);
+				}
+			}
+			return data;
+		}
+
+		//随机抽取小方块
+		function mold(){             //0-6
+			var num=Math.floor( Math.random()*7 );
+			return arr[num];
+		}
+
+		//生成方块
+		function createRect(rect){
+			for(var i=0;i<rect.length;i++){
+				for(var j=0;j<rect[i].length;j++){
+					//改变数值,改变颜色
+					if( !data[i+y][j+x] ){
+						data[i+y][j+x]=rect[i][j];
+					}
+				}
+			}
+			map(data,context);
+		}
+
+		//地图
+		function map(data,context){
+			//计算小方块的大小
+			var w=500/12-10;
+			var h=w;
+
+			var rLen=data.length;        //行
+			var cLen=data[0].length;     //列
+			for(var i=0;i<rLen;i++){
+				for(var j=0;j<cLen;j++){
+					if(data[i][j]==0){
+						//没有方块,颜色
+						context.fillStyle="#A4FEFF";
+					}else if(data[i][j]==1){
+						context.fillStyle="yellow";
+					}
+					context.fillRect(j*(w+10)+5,i*(h+10)+5,w,h);
+					context.fill();
+				}
+			}
+
+		}
+
+		//自动向下掉落
+		function fall(){
+			//如果说,你移动到了底部,那我们就再重新生成一个方块
+			if(collideTest()){
+				//生成新的之前每次都要判断一下,是否可以消除
+				clearLine();
+				x=4;
+				y=0;
+				matrix=mold();
+			}
+			//清除前面的方块
+			clearRect(matrix);
+			y++;
+			//再来生成一次方块
+			createRect(matrix);
+
+		}
+
+		//碰撞检测
+		function collideTest(){
+			var len=matrix.length;   //最后一个值
+			//第一种情况,到达底部
+			if(y+len>=data.length){
+				return true;
+			}
+
+			//循环最后一行
+			for(var i=len-1;i<len;i++){
+				//循环最后一行的每一列
+				for(var j=0;j<matrix[i].length;j++){
+										//方块的下一行有值									
+					if(matrix[i][j] && data[i+y+1][j+x]==1){
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		//清除生成的方块,不能改变全局的data
+		function clearRect(rect){
+			for(var i=0;i<rect.length;i++){
+				for(var j=0;j<rect[i].length;j++){
+					//改变数值,改变颜色
+					if( rect[i][j] ){
+						data[i+y][j+x]=0;
+					}
+				}
+			}
+		}
+
+		//消除
+		function clearLine(){
+			//因为我们是删除一行,必须新增加一条
+			var newArr=[0,0,0,0,0,0,0,0,0,0,0,0];
+			for(var i=0;i<data.length;i++){
+				var flag=true;
+				for(var j=0;j<data[i].length;j++){
+					//在一行当中,只要有一个为0,没填满,则不能删除
+					if(data[i][j]==0){
+						flag=false;
+					}
+				}
+				if(flag){
+					data.splice(i,1);   //从第i个开始,删除一个
+					data.unshift([].concat(newArr));   //添加一行
+				}
+			}
+		}
+	</script>
+</body>
+</html>
